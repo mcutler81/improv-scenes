@@ -1,6 +1,11 @@
 import axios from 'axios';
 
 export async function generateDialogue(speaker, otherCharacters, audienceWord, previousDialogue) {
+  // Load dialogue settings from localStorage
+  const savedSettings = localStorage.getItem('improv-dialogue-settings');
+  const settings = savedSettings
+    ? JSON.parse(savedSettings)
+    : { maxTokens: 50, temperature: 0.9 };
   const lastLine = previousDialogue.length > 0
     ? previousDialogue[previousDialogue.length - 1].text
     : null;
@@ -57,8 +62,8 @@ Respond with ONLY the dialogue line, no quotes or attribution.`;
           { role: 'system', content: `You are an expert improv comedian performing as ${speaker.name} with ${otherCharacterNames}. Follow the "Yes, and..." rule - always accept what others say and build on it. Keep responses short, punchy, and in character. Make the conversation flow naturally in this 4-person scene.` },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 50,
-        temperature: 0.9
+        max_tokens: settings.maxTokens,
+        temperature: settings.temperature
       },
       {
         headers: {

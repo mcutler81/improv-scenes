@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import CharacterSelect from './components/CharacterSelect';
 import ImprovStage from './components/ImprovStage';
+import Settings from './components/Settings';
 import './App.css';
 
 function App() {
@@ -22,9 +23,17 @@ function App() {
     setAudienceWord('');
   };
 
+  const handleSettings = () => {
+    setScreen('settings');
+  };
+
+  const handleBackFromSettings = () => {
+    setScreen('select');
+  };
+
   return (
     <div className="App">
-      {screen === 'select' ? (
+      {screen === 'select' && (
         <CharacterSelect
           character1={character1}
           character2={character2}
@@ -37,8 +46,11 @@ function App() {
           audienceWord={audienceWord}
           setAudienceWord={setAudienceWord}
           onStart={handleStartImprov}
+          onSettings={handleSettings}
         />
-      ) : (
+      )}
+
+      {screen === 'improv' && (
         <ImprovStage
           character1={character1}
           character2={character2}
@@ -47,6 +59,10 @@ function App() {
           audienceWord={audienceWord}
           onReset={handleReset}
         />
+      )}
+
+      {screen === 'settings' && (
+        <Settings onBack={handleBackFromSettings} />
       )}
     </div>
   );

@@ -1,5 +1,5 @@
-import React from 'react';
-import { characters } from '../data/characters';
+import React, { useState, useEffect } from 'react';
+import { characters as defaultCharacters } from '../data/characters';
 import './CharacterSelect.css';
 
 function CharacterSelect({
@@ -13,11 +13,26 @@ function CharacterSelect({
   setCharacter4,
   audienceWord,
   setAudienceWord,
-  onStart
+  onStart,
+  onSettings
 }) {
+  const [characters, setCharacters] = useState(defaultCharacters);
+
+  useEffect(() => {
+    // Load characters from localStorage if available
+    const savedCharacters = localStorage.getItem('improv-characters');
+    if (savedCharacters) {
+      setCharacters(JSON.parse(savedCharacters));
+    }
+  }, []);
   return (
     <div className="character-select">
-      <h1 className="title">AI Improv Theater</h1>
+      <div className="header-section">
+        <h1 className="title">AI Improv Theater</h1>
+        <button onClick={onSettings} className="settings-button">
+          ⚙️ Settings
+        </button>
+      </div>
 
       <div className="character-selectors">
         <div className="selector">

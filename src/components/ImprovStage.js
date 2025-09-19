@@ -9,6 +9,10 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
   const [currentSpeaker, setCurrentSpeaker] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60);
+  const [dialogueSettings, setDialogueSettings] = useState({
+    sceneLength: 12,
+    pauseBetweenLines: 1500
+  });
   const intervalRef = useRef(null);
   const timeLeftRef = useRef(60);
   const isMountedRef = useRef(false);
@@ -16,6 +20,14 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
   useEffect(() => {
     timeLeftRef.current = timeLeft;
   }, [timeLeft]);
+
+  useEffect(() => {
+    // Load dialogue settings from localStorage
+    const savedSettings = localStorage.getItem('improv-dialogue-settings');
+    if (savedSettings) {
+      setDialogueSettings(JSON.parse(savedSettings));
+    }
+  }, []);
 
   useEffect(() => {
     // Prevent double mounting in StrictMode
@@ -36,7 +48,7 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
       // Initial delay to let scene set up
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < dialogueSettings.sceneLength; i++) {
         if (timeLeftRef.current <= 0) break;
 
         // eslint-disable-next-line no-loop-func
@@ -65,7 +77,7 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
         await speakText(line, speaker.voiceId);
 
         // Brief pause between speakers (natural conversation pause)
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, dialogueSettings.pauseBetweenLines));
 
         // Switch to next speaker (rotate through all characters)
         const currentIndex = allCharacters.indexOf(speaker);
