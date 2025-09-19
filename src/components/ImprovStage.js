@@ -4,7 +4,7 @@ import { generateDialogue } from '../services/dialogueGenerator';
 import { speakText } from '../services/voiceSynthesis';
 import './ImprovStage.css';
 
-function ImprovStage({ character1, character2, audienceWord, onReset }) {
+function ImprovStage({ character1, character2, character3, character4, audienceWord, onReset }) {
   const [dialogue, setDialogue] = useState([]);
   const [currentSpeaker, setCurrentSpeaker] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -30,20 +30,22 @@ function ImprovStage({ character1, character2, audienceWord, onReset }) {
 
     const performDialogue = async () => {
       let totalDialogue = [];
-      let speaker = Math.random() > 0.5 ? character1 : character2;
+      const allCharacters = [character1, character2, character3, character4];
+      let speaker = allCharacters[Math.floor(Math.random() * 4)];
 
       // Initial delay to let scene set up
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 12; i++) {
         if (timeLeftRef.current <= 0) break;
 
-        const otherSpeaker = speaker === character1 ? character2 : character1;
+        // eslint-disable-next-line no-loop-func
+        const otherCharacters = allCharacters.filter(char => char !== speaker);
 
         // Generate the line
         const line = await generateDialogue(
           speaker,
-          otherSpeaker,
+          otherCharacters,
           audienceWord,
           totalDialogue
         );
@@ -65,8 +67,9 @@ function ImprovStage({ character1, character2, audienceWord, onReset }) {
         // Brief pause between speakers (natural conversation pause)
         await new Promise(resolve => setTimeout(resolve, 1500));
 
-        // Switch speakers for next turn
-        speaker = otherSpeaker;
+        // Switch to next speaker (rotate through all characters)
+        const currentIndex = allCharacters.indexOf(speaker);
+        speaker = allCharacters[(currentIndex + 1) % 4];
       }
 
       endScene();
@@ -97,7 +100,7 @@ function ImprovStage({ character1, character2, audienceWord, onReset }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [character1, character2, audienceWord]);
+  }, [character1, character2, character3, character4, audienceWord]);
 
   return (
     <div className="improv-stage">
@@ -110,29 +113,45 @@ function ImprovStage({ character1, character2, audienceWord, onReset }) {
       </div>
 
       <div className="stage-area">
-        <div className={`character-panel ${currentSpeaker === character1.name ? 'speaking' : ''}`}>
-          <h2>{character1.name}</h2>
-          <div className="character-image-placeholder">
-            {character1.name}
+        <div className="character-grid">
+          <div className={`character-panel ${currentSpeaker === character1.name ? 'speaking' : ''}`}>
+            <h2>{character1.name}</h2>
+            <div className="character-image-placeholder">
+              {character1.name}
+            </div>
+          </div>
+
+          <div className={`character-panel ${currentSpeaker === character2.name ? 'speaking' : ''}`}>
+            <h2>{character2.name}</h2>
+            <div className="character-image-placeholder">
+              {character2.name}
+            </div>
+          </div>
+
+          <div className={`character-panel ${currentSpeaker === character3.name ? 'speaking' : ''}`}>
+            <h2>{character3.name}</h2>
+            <div className="character-image-placeholder">
+              {character3.name}
+            </div>
+          </div>
+
+          <div className={`character-panel ${currentSpeaker === character4.name ? 'speaking' : ''}`}>
+            <h2>{character4.name}</h2>
+            <div className="character-image-placeholder">
+              {character4.name}
+            </div>
           </div>
         </div>
 
         <div className="dialogue-area">
           {dialogue.map((line, index) => (
-            <div key={index} className={`dialogue-line ${line.speaker === character1.name ? 'left' : 'right'}`}>
+            <div key={index} className={`dialogue-line`}>
               <strong>{line.speaker}:</strong> {line.text}
             </div>
           ))}
           {dialogue.length === 0 && (
             <p className="waiting">Generating improv scene...</p>
           )}
-        </div>
-
-        <div className={`character-panel ${currentSpeaker === character2.name ? 'speaking' : ''}`}>
-          <h2>{character2.name}</h2>
-          <div className="character-image-placeholder">
-            {character2.name}
-          </div>
         </div>
       </div>
 

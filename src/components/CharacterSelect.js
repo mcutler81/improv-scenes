@@ -5,8 +5,12 @@ import './CharacterSelect.css';
 function CharacterSelect({
   character1,
   character2,
+  character3,
+  character4,
   setCharacter1,
   setCharacter2,
+  setCharacter3,
+  setCharacter4,
   audienceWord,
   setAudienceWord,
   onStart
@@ -40,8 +44,6 @@ function CharacterSelect({
           )}
         </div>
 
-        <div className="vs">VS</div>
-
         <div className="selector">
           <h2>Character 2</h2>
           <select
@@ -53,7 +55,11 @@ function CharacterSelect({
             className="character-dropdown"
           >
             <option value="">Choose a character...</option>
-            {characters.filter(char => char.id !== character1?.id).map(char => (
+            {characters.filter(char =>
+              char.id !== character1?.id &&
+              char.id !== character3?.id &&
+              char.id !== character4?.id
+            ).map(char => (
               <option key={char.id} value={char.id}>
                 {char.name}
               </option>
@@ -62,6 +68,62 @@ function CharacterSelect({
           {character2 && (
             <div className="character-preview">
               <p className="catchphrase">"{character2.catchphrases[0]}"</p>
+            </div>
+          )}
+        </div>
+
+        <div className="selector">
+          <h2>Character 3</h2>
+          <select
+            value={character3 || ''}
+            onChange={(e) => {
+              const char = characters.find(c => c.id === e.target.value);
+              setCharacter3(char);
+            }}
+            className="character-dropdown"
+          >
+            <option value="">Choose a character...</option>
+            {characters.filter(char =>
+              char.id !== character1?.id &&
+              char.id !== character2?.id &&
+              char.id !== character4?.id
+            ).map(char => (
+              <option key={char.id} value={char.id}>
+                {char.name}
+              </option>
+            ))}
+          </select>
+          {character3 && (
+            <div className="character-preview">
+              <p className="catchphrase">"{character3.catchphrases[0]}"</p>
+            </div>
+          )}
+        </div>
+
+        <div className="selector">
+          <h2>Character 4</h2>
+          <select
+            value={character4 || ''}
+            onChange={(e) => {
+              const char = characters.find(c => c.id === e.target.value);
+              setCharacter4(char);
+            }}
+            className="character-dropdown"
+          >
+            <option value="">Choose a character...</option>
+            {characters.filter(char =>
+              char.id !== character1?.id &&
+              char.id !== character2?.id &&
+              char.id !== character3?.id
+            ).map(char => (
+              <option key={char.id} value={char.id}>
+                {char.name}
+              </option>
+            ))}
+          </select>
+          {character4 && (
+            <div className="character-preview">
+              <p className="catchphrase">"{character4.catchphrases[0]}"</p>
             </div>
           )}
         </div>
@@ -80,7 +142,7 @@ function CharacterSelect({
 
       <button
         onClick={onStart}
-        disabled={!character1 || !character2 || !audienceWord}
+        disabled={!character1 || !character2 || !character3 || !character4 || !audienceWord}
         className="start-button"
       >
         Start the Scene!

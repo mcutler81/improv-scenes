@@ -19,11 +19,10 @@
 }
 
 .character-selectors {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 40px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 30px;
+  margin-bottom: 40px;
 }
 
 .selector {
@@ -69,11 +68,6 @@
   font-size: 0.95rem;
 }
 
-.vs {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #667eea;
-}
 
 .audience-input {
   text-align: center;
