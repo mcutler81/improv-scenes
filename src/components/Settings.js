@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { characters as defaultCharacters } from '../data/characters';
+import { defaultPromptTemplates } from '../services/dialogueGenerator';
 import './Settings.css';
 
 function Settings({ onBack }) {
@@ -10,6 +11,7 @@ function Settings({ onBack }) {
     sceneLength: 12,
     pauseBetweenLines: 1500
   });
+  const [promptTemplates, setPromptTemplates] = useState(defaultPromptTemplates);
   const [selectedCharacter, setSelectedCharacter] = useState(null);
   const [activeTab, setActiveTab] = useState('characters');
 
@@ -17,6 +19,7 @@ function Settings({ onBack }) {
     // Load settings from localStorage or use defaults
     const savedCharacters = localStorage.getItem('improv-characters');
     const savedDialogueSettings = localStorage.getItem('improv-dialogue-settings');
+    const savedPromptTemplates = localStorage.getItem('improv-prompt-templates');
 
     if (savedCharacters) {
       setCharacters(JSON.parse(savedCharacters));
@@ -26,6 +29,10 @@ function Settings({ onBack }) {
 
     if (savedDialogueSettings) {
       setDialogueSettings(JSON.parse(savedDialogueSettings));
+    }
+
+    if (savedPromptTemplates) {
+      setPromptTemplates({ ...defaultPromptTemplates, ...JSON.parse(savedPromptTemplates) });
     }
   }, []);
 
@@ -37,6 +44,11 @@ function Settings({ onBack }) {
   const saveDialogueSettings = (newSettings) => {
     setDialogueSettings(newSettings);
     localStorage.setItem('improv-dialogue-settings', JSON.stringify(newSettings));
+  };
+
+  const savePromptTemplates = (newTemplates) => {
+    setPromptTemplates(newTemplates);
+    localStorage.setItem('improv-prompt-templates', JSON.stringify(newTemplates));
   };
 
   const updateCharacter = (updatedCharacter) => {
@@ -83,6 +95,7 @@ function Settings({ onBack }) {
         sceneLength: 12,
         pauseBetweenLines: 1500
       });
+      savePromptTemplates(defaultPromptTemplates);
       setSelectedCharacter(null);
     }
   };
@@ -106,6 +119,12 @@ function Settings({ onBack }) {
           onClick={() => setActiveTab('dialogue')}
         >
           Dialogue Settings
+        </button>
+        <button
+          className={`tab ${activeTab === 'prompts' ? 'active' : ''}`}
+          onClick={() => setActiveTab('prompts')}
+        >
+          Prompt Templates
         </button>
       </div>
 
@@ -168,6 +187,16 @@ function Settings({ onBack }) {
           <DialogueEditor
             settings={dialogueSettings}
             onUpdate={saveDialogueSettings}
+          />
+        </div>
+      )}
+
+      {activeTab === 'prompts' && (
+        <div className="prompts-section">
+          <h2>Prompt Templates</h2>
+          <PromptTemplateEditor
+            templates={promptTemplates}
+            onUpdate={savePromptTemplates}
           />
         </div>
       )}
@@ -345,6 +374,98 @@ function DialogueEditor({ settings, onUpdate }) {
 
       <button onClick={handleSave} className="save-button">
         Save Dialogue Settings
+      </button>
+    </div>
+  );
+}
+
+function PromptTemplateEditor({ templates, onUpdate }) {
+  const [editedTemplates, setEditedTemplates] = useState({ ...templates });
+
+  const handleChange = (field, value) => {
+    setEditedTemplates(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSave = () => {
+    onUpdate(editedTemplates);
+    alert('Prompt templates updated successfully!');
+  };
+
+  const resetToDefaults = () => {
+    if (window.confirm('Reset all prompt templates to defaults? This cannot be undone.')) {
+      setEditedTemplates({ ...defaultPromptTemplates });
+    }
+  };
+
+  const templateDescriptions = {
+    firstLineInstructions: "Instructions for the first line of a scene (scene establishment)",
+    secondLineInstructions: "Instructions for the second line of a scene (building on setup)",
+    continuationInstructions: "Instructions for continuing lines in a scene",
+    mainPromptTemplate: "Main prompt template that combines all elements",
+    systemPromptTemplate: "System prompt that sets up the AI's role",
+    maxWords: "Maximum words per response",
+    sceneEstablishText: "Text describing scene establishment requirement",
+    sceneBuildText: "Text describing scene building requirement"
+  };
+
+  const availableVariables = {
+    firstLineInstructions: ["{audienceWord}"],
+    secondLineInstructions: ["{lastSpeaker}", "{lastLine}"],
+    continuationInstructions: ["{lastSpeaker}", "{lastLine}"],
+    mainPromptTemplate: ["{speakerName}", "{otherCharacterNames}", "{audienceWord}", "{personality}", "{catchphrases}", "{promptInstructions}", "{maxWords}", "{sceneInstructions}"],
+    systemPromptTemplate: ["{speakerName}", "{otherCharacterNames}"]
+  };
+
+  return (
+    <div className="prompt-templates-form">
+      <div className="form-header">
+        <p className="help-text">
+          Customize the AI prompt templates used to generate character dialogue. Use variables in curly braces like {"{speakerName}"} to insert dynamic content.
+        </p>
+        <button onClick={resetToDefaults} className="reset-templates-button">
+          Reset to Defaults
+        </button>
+      </div>
+
+      {Object.entries(editedTemplates).map(([key, value]) => (
+        <div key={key} className="template-group">
+          <div className="template-header">
+            <label className="template-label">{key}:</label>
+            <span className="template-description">
+              {templateDescriptions[key]}
+            </span>
+          </div>
+
+          {typeof value === 'string' ? (
+            <textarea
+              value={value}
+              onChange={(e) => handleChange(key, e.target.value)}
+              rows={value.split('\n').length + 2}
+              className="template-textarea"
+              placeholder={`Enter ${key} template...`}
+            />
+          ) : (
+            <input
+              type="number"
+              value={value}
+              onChange={(e) => handleChange(key, parseInt(e.target.value) || 0)}
+              className="template-number-input"
+            />
+          )}
+
+          {availableVariables[key] && (
+            <div className="available-vars">
+              <small>Available variables: {availableVariables[key].join(', ')}</small>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <button onClick={handleSave} className="save-button">
+        Save Prompt Templates
       </button>
     </div>
   );

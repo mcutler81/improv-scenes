@@ -323,6 +323,129 @@
   gap: 25px;
 }
 
+/* Prompts Section */
+.prompts-section {
+  max-width: 900px;
+}
+
+.prompts-section h2 {
+  color: #555;
+  margin-bottom: 30px;
+}
+
+.prompt-templates-form {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+}
+
+.help-text {
+  flex: 1;
+  color: #666;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.reset-templates-button {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5253 100%);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.reset-templates-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(255, 107, 107, 0.3);
+}
+
+.template-group {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #e9ecef;
+}
+
+.template-header {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 15px;
+}
+
+.template-label {
+  font-weight: bold;
+  color: #333;
+  font-size: 1.1rem;
+  font-family: 'Courier New', monospace;
+}
+
+.template-description {
+  color: #666;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.template-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: 'Courier New', monospace;
+  line-height: 1.4;
+  resize: vertical;
+  transition: border-color 0.3s;
+}
+
+.template-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.template-number-input {
+  width: 120px;
+  padding: 8px 12px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+}
+
+.template-number-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.available-vars {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 6px;
+  border-left: 3px solid #667eea;
+}
+
+.available-vars small {
+  color: #555;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .characters-section {
