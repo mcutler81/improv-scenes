@@ -40,7 +40,7 @@ Respond with ONLY the dialogue line, no quotes or attribution.`,
   sceneBuildText: 'Builds on the established scene'
 };
 
-export async function generateDialogue(speaker, otherCharacters, audienceWord, previousDialogue) {
+export async function generateDialogue(speaker, otherCharacters, audienceWord, previousDialogue, supervisorContext = null) {
   // Load dialogue settings from localStorage
   const savedSettings = localStorage.getItem('improv-dialogue-settings');
   const settings = savedSettings
@@ -88,6 +88,38 @@ export async function generateDialogue(speaker, otherCharacters, audienceWord, p
     });
   }
 
+  // Build enhanced prompt with supervisor context
+  let enhancedPromptInstructions = promptInstructions;
+  let additionalContext = '';
+
+  if (supervisorContext) {
+    // Add supervisor context to the prompt
+    additionalContext += `\n\nScene Director's Note: ${supervisorContext.reason}`;
+    if (supervisorContext.sceneNote) {
+      additionalContext += `\nScene Direction: ${supervisorContext.sceneNote}`;
+    }
+
+    // Add scene state information
+    if (supervisorContext.sceneState) {
+      const state = supervisorContext.sceneState;
+      additionalContext += `\nScene Context: Location is ${state.sceneContext.location}, energy is ${state.sceneContext.energy}, mood is ${state.sceneContext.mood}`;
+
+      // Add character relationship context
+      const charStats = state.characterStats[speaker.name];
+      if (charStats && charStats.emotionalState !== 'neutral') {
+        additionalContext += `\nYour Current Emotional State: ${charStats.emotionalState}`;
+      }
+
+      // Add participation context
+      const underutilized = state.characterStats[speaker.name]?.turnCount < (state.totalLines / 4) * 0.7;
+      if (underutilized) {
+        additionalContext += `\nNote: You haven't spoken much yet - this is a good opportunity to establish your presence in the scene`;
+      }
+    }
+
+    enhancedPromptInstructions += additionalContext;
+  }
+
   // Build the main prompt using the template
   const templateVars = {
     speakerName: speaker.name,
@@ -95,7 +127,7 @@ export async function generateDialogue(speaker, otherCharacters, audienceWord, p
     audienceWord,
     personality: speaker.personality,
     catchphrases: speaker.catchphrases.join(', '),
-    promptInstructions,
+    promptInstructions: enhancedPromptInstructions,
     maxWords: promptTemplates.maxWords,
     sceneInstructions: isFirstLine ? promptTemplates.sceneEstablishText : promptTemplates.sceneBuildText
   };

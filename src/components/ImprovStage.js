@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import Timer from './Timer';
 import { generateDialogue } from '../services/dialogueGenerator';
 import { speakText } from '../services/voiceSynthesis';
+import { decideSpeaker } from '../services/supervisorAgent';
+import { SceneStateManager } from '../services/sceneStateManager';
 import './ImprovStage.css';
 
 function ImprovStage({ character1, character2, character3, character4, audienceWord, onReset }) {
@@ -13,9 +15,11 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
     sceneLength: 12,
     pauseBetweenLines: 1500
   });
+  const [supervisorDecision, setSupervisorDecision] = useState(null);
   const intervalRef = useRef(null);
   const timeLeftRef = useRef(60);
   const isMountedRef = useRef(false);
+  const sceneStateRef = useRef(null);
 
   useEffect(() => {
     timeLeftRef.current = timeLeft;
@@ -33,17 +37,21 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
     // Prevent double mounting in StrictMode
     if (isMountedRef.current) return;
     isMountedRef.current = true;
+
+    // Initialize scene state manager
+    const allCharacters = [character1, character2, character3, character4];
+    sceneStateRef.current = new SceneStateManager(allCharacters, audienceWord);
+
     const endScene = () => {
       setIsPlaying(false);
+      setSupervisorDecision(null);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
 
     const performDialogue = async () => {
-      let totalDialogue = [];
-      const allCharacters = [character1, character2, character3, character4];
-      let speaker = allCharacters[Math.floor(Math.random() * 4)];
+      const sceneState = sceneStateRef.current;
 
       // Initial delay to let scene set up
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -51,37 +59,67 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
       for (let i = 0; i < dialogueSettings.sceneLength; i++) {
         if (timeLeftRef.current <= 0) break;
 
-        // eslint-disable-next-line no-loop-func
-        const otherCharacters = allCharacters.filter(char => char !== speaker);
+        try {
+          // Get supervisor decision for next speaker
+          const currentState = sceneState.getCurrentState();
+          const decision = await decideSpeaker(
+            currentState,
+            allCharacters,
+            sceneState.dialogue.slice(-6) // Recent dialogue for context
+          );
 
-        // Generate the line
-        const line = await generateDialogue(
-          speaker,
-          otherCharacters,
-          audienceWord,
-          totalDialogue
-        );
+          setSupervisorDecision(decision);
+          const speaker = decision.speaker;
+          setCurrentSpeaker(speaker.name);
 
-        const dialogueEntry = {
-          speaker: speaker.name,
-          text: line,
-          timestamp: Date.now()
-        };
+          // eslint-disable-next-line no-loop-func
+          const otherCharacters = allCharacters.filter(char => char !== speaker);
 
-        // Add to dialogue history
-        totalDialogue.push(dialogueEntry);
-        setDialogue(prev => [...prev, dialogueEntry]);
-        setCurrentSpeaker(speaker.name);
+          // Generate the line with supervisor context
+          const line = await generateDialogue(
+            speaker,
+            otherCharacters,
+            audienceWord,
+            sceneState.dialogue,
+            {
+              reason: decision.reason,
+              sceneNote: decision.sceneNote,
+              sceneState: currentState
+            }
+          );
 
-        // Speak the line and wait for it to finish
-        await speakText(line, speaker.voiceId);
+          // Add dialogue to scene state (this updates all tracking)
+          const dialogueEntry = sceneState.addDialogue(speaker, line);
 
-        // Brief pause between speakers (natural conversation pause)
-        await new Promise(resolve => setTimeout(resolve, dialogueSettings.pauseBetweenLines));
+          // Update UI
+          setDialogue(prev => [...prev, dialogueEntry]);
 
-        // Switch to next speaker (rotate through all characters)
-        const currentIndex = allCharacters.indexOf(speaker);
-        speaker = allCharacters[(currentIndex + 1) % 4];
+          // Speak the line and wait for it to finish
+          await speakText(line, speaker.voiceId);
+
+          // Brief pause between speakers (natural conversation pause)
+          await new Promise(resolve => setTimeout(resolve, dialogueSettings.pauseBetweenLines));
+
+        } catch (error) {
+          console.error('Error in dialogue generation:', error);
+          // Fallback to simple rotation on error
+          const fallbackSpeaker = allCharacters[i % 4];
+          const otherCharacters = allCharacters.filter(char => char !== fallbackSpeaker);
+
+          const line = await generateDialogue(
+            fallbackSpeaker,
+            otherCharacters,
+            audienceWord,
+            sceneState.dialogue
+          );
+
+          const dialogueEntry = sceneState.addDialogue(fallbackSpeaker, line);
+          setDialogue(prev => [...prev, dialogueEntry]);
+          setCurrentSpeaker(fallbackSpeaker.name);
+
+          await speakText(line, fallbackSpeaker.voiceId);
+          await new Promise(resolve => setTimeout(resolve, dialogueSettings.pauseBetweenLines));
+        }
       }
 
       endScene();
@@ -121,6 +159,14 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
         <div className="word-display">
           Inspired by: <span className="audience-word">"{audienceWord}"</span>
         </div>
+        {supervisorDecision && (
+          <div className="supervisor-note">
+            <small>Director: {supervisorDecision.reason}</small>
+            {supervisorDecision.sceneNote && (
+              <small> • {supervisorDecision.sceneNote}</small>
+            )}
+          </div>
+        )}
         <Timer timeLeft={timeLeft} />
       </div>
 

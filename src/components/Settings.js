@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { characters as defaultCharacters } from '../data/characters';
 import { defaultPromptTemplates } from '../services/dialogueGenerator';
+import { defaultSupervisorSettings } from '../services/supervisorAgent';
 import './Settings.css';
 
 function Settings({ onBack }) {
@@ -12,6 +13,7 @@ function Settings({ onBack }) {
     pauseBetweenLines: 1500
   });
   const [promptTemplates, setPromptTemplates] = useState(defaultPromptTemplates);
+  const [supervisorSettings, setSupervisorSettings] = useState(defaultSupervisorSettings);
   const [selectedCharacter, setSelectedCharacter] = useState(null);
   const [activeTab, setActiveTab] = useState('characters');
 
@@ -20,6 +22,7 @@ function Settings({ onBack }) {
     const savedCharacters = localStorage.getItem('improv-characters');
     const savedDialogueSettings = localStorage.getItem('improv-dialogue-settings');
     const savedPromptTemplates = localStorage.getItem('improv-prompt-templates');
+    const savedSupervisorSettings = localStorage.getItem('improv-supervisor-settings');
 
     if (savedCharacters) {
       setCharacters(JSON.parse(savedCharacters));
@@ -33,6 +36,10 @@ function Settings({ onBack }) {
 
     if (savedPromptTemplates) {
       setPromptTemplates({ ...defaultPromptTemplates, ...JSON.parse(savedPromptTemplates) });
+    }
+
+    if (savedSupervisorSettings) {
+      setSupervisorSettings({ ...defaultSupervisorSettings, ...JSON.parse(savedSupervisorSettings) });
     }
   }, []);
 
@@ -49,6 +56,11 @@ function Settings({ onBack }) {
   const savePromptTemplates = (newTemplates) => {
     setPromptTemplates(newTemplates);
     localStorage.setItem('improv-prompt-templates', JSON.stringify(newTemplates));
+  };
+
+  const saveSupervisorSettings = (newSettings) => {
+    setSupervisorSettings(newSettings);
+    localStorage.setItem('improv-supervisor-settings', JSON.stringify(newSettings));
   };
 
   const updateCharacter = (updatedCharacter) => {
@@ -96,6 +108,7 @@ function Settings({ onBack }) {
         pauseBetweenLines: 1500
       });
       savePromptTemplates(defaultPromptTemplates);
+      saveSupervisorSettings(defaultSupervisorSettings);
       setSelectedCharacter(null);
     }
   };
@@ -125,6 +138,12 @@ function Settings({ onBack }) {
           onClick={() => setActiveTab('prompts')}
         >
           Prompt Templates
+        </button>
+        <button
+          className={`tab ${activeTab === 'supervisor' ? 'active' : ''}`}
+          onClick={() => setActiveTab('supervisor')}
+        >
+          Supervisor
         </button>
       </div>
 
@@ -197,6 +216,16 @@ function Settings({ onBack }) {
           <PromptTemplateEditor
             templates={promptTemplates}
             onUpdate={savePromptTemplates}
+          />
+        </div>
+      )}
+
+      {activeTab === 'supervisor' && (
+        <div className="supervisor-section">
+          <h2>Supervisor Agent Settings</h2>
+          <SupervisorEditor
+            settings={supervisorSettings}
+            onUpdate={saveSupervisorSettings}
           />
         </div>
       )}
@@ -466,6 +495,187 @@ function PromptTemplateEditor({ templates, onUpdate }) {
 
       <button onClick={handleSave} className="save-button">
         Save Prompt Templates
+      </button>
+    </div>
+  );
+}
+
+function SupervisorEditor({ settings, onUpdate }) {
+  const [editedSettings, setEditedSettings] = useState({ ...settings });
+
+  const handleChange = (field, value) => {
+    setEditedSettings(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSave = () => {
+    onUpdate(editedSettings);
+    alert('Supervisor settings updated successfully!');
+  };
+
+  const resetToDefaults = () => {
+    if (window.confirm('Reset all supervisor settings to defaults? This cannot be undone.')) {
+      setEditedSettings({ ...defaultSupervisorSettings });
+    }
+  };
+
+  const settingDescriptions = {
+    turnTakingStrategy: "How the supervisor decides who speaks next",
+    pacingSpeed: "Overall speed and rhythm of scene progression",
+    supervisorPersonality: "The directing style and approach of the supervisor",
+    participationBalance: "How strictly the supervisor enforces equal speaking time",
+    sceneTransitionSensitivity: "How quickly the supervisor responds to scene changes",
+    maxConsecutiveTurns: "Maximum number of turns one character can have in a row",
+    characterInteractionWeight: "How much character relationships influence speaker selection (0-1)",
+    dramaticTimingWeight: "How much dramatic timing influences speaker selection (0-1)"
+  };
+
+  const dropdownOptions = {
+    turnTakingStrategy: [
+      { value: 'round-robin', label: 'Round Robin - Simple rotation' },
+      { value: 'weighted-random', label: 'Weighted Random - Balance participation' },
+      { value: 'context-driven', label: 'Context Driven - AI considers scene context' },
+      { value: 'dramatic-optimal', label: 'Dramatic Optimal - AI optimizes for dramatic impact' }
+    ],
+    pacingSpeed: [
+      { value: 'fast', label: 'Fast - Quick transitions, high energy' },
+      { value: 'medium', label: 'Medium - Natural pacing' },
+      { value: 'slow', label: 'Slow - Thoughtful, deliberate pacing' }
+    ],
+    supervisorPersonality: [
+      { value: 'improv-coach', label: 'Improv Coach - Supportive, educational' },
+      { value: 'playwright', label: 'Playwright - Story structure focused' },
+      { value: 'director', label: 'Director - Authoritative, vision-driven' },
+      { value: 'natural', label: 'Natural - Minimal intervention style' }
+    ],
+    participationBalance: [
+      { value: 'strict', label: 'Strict - Enforce equal participation' },
+      { value: 'loose', label: 'Loose - Allow some imbalance for flow' },
+      { value: 'natural', label: 'Natural - Let scene dynamics decide' }
+    ],
+    sceneTransitionSensitivity: [
+      { value: 'low', label: 'Low - Stable, consistent direction' },
+      { value: 'medium', label: 'Medium - Responsive to major changes' },
+      { value: 'high', label: 'High - Highly adaptive to scene shifts' }
+    ]
+  };
+
+  return (
+    <div className="supervisor-form">
+      <div className="form-header">
+        <p className="help-text">
+          Configure the AI Supervisor that coordinates character interactions and manages scene flow. The supervisor works behind the scenes to create natural, engaging improv scenes.
+        </p>
+        <button onClick={resetToDefaults} className="reset-templates-button">
+          Reset to Defaults
+        </button>
+      </div>
+
+      <div className="supervisor-settings-grid">
+        {/* Dropdown Settings */}
+        {Object.entries(dropdownOptions).map(([key, options]) => (
+          <div key={key} className="setting-group">
+            <div className="setting-header">
+              <label className="setting-label">{key}:</label>
+              <span className="setting-description">
+                {settingDescriptions[key]}
+              </span>
+            </div>
+            <select
+              value={editedSettings[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+              className="setting-select"
+            >
+              {options.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+
+        {/* Numeric Settings */}
+        <div className="setting-group">
+          <div className="setting-header">
+            <label className="setting-label">maxConsecutiveTurns:</label>
+            <span className="setting-description">
+              {settingDescriptions.maxConsecutiveTurns}
+            </span>
+          </div>
+          <input
+            type="number"
+            min="1"
+            max="5"
+            value={editedSettings.maxConsecutiveTurns}
+            onChange={(e) => handleChange('maxConsecutiveTurns', parseInt(e.target.value))}
+            className="setting-number-input"
+          />
+        </div>
+
+        <div className="setting-group">
+          <div className="setting-header">
+            <label className="setting-label">characterInteractionWeight:</label>
+            <span className="setting-description">
+              {settingDescriptions.characterInteractionWeight}
+            </span>
+          </div>
+          <input
+            type="number"
+            min="0"
+            max="1"
+            step="0.1"
+            value={editedSettings.characterInteractionWeight}
+            onChange={(e) => handleChange('characterInteractionWeight', parseFloat(e.target.value))}
+            className="setting-number-input"
+          />
+        </div>
+
+        <div className="setting-group">
+          <div className="setting-header">
+            <label className="setting-label">dramaticTimingWeight:</label>
+            <span className="setting-description">
+              {settingDescriptions.dramaticTimingWeight}
+            </span>
+          </div>
+          <input
+            type="number"
+            min="0"
+            max="1"
+            step="0.1"
+            value={editedSettings.dramaticTimingWeight}
+            onChange={(e) => handleChange('dramaticTimingWeight', parseFloat(e.target.value))}
+            className="setting-number-input"
+          />
+        </div>
+      </div>
+
+      {/* Supervisor Prompt Template */}
+      <div className="supervisor-prompt-section">
+        <div className="setting-header">
+          <label className="setting-label">Supervisor Prompt Template:</label>
+          <span className="setting-description">
+            The prompt template used by the AI supervisor to make decisions
+          </span>
+        </div>
+        <textarea
+          value={editedSettings.supervisorPromptTemplate}
+          onChange={(e) => handleChange('supervisorPromptTemplate', e.target.value)}
+          rows={12}
+          className="template-textarea"
+          placeholder="Enter supervisor prompt template..."
+        />
+        <div className="available-vars">
+          <small>
+            Available variables: {"{audienceWord}, {sceneLocation}, {sceneEnergy}, {sceneMood}, {dialogueCount}, {characterDetails}, {recentDialogue}, {participationStats}"}
+          </small>
+        </div>
+      </div>
+
+      <button onClick={handleSave} className="save-button">
+        Save Supervisor Settings
       </button>
     </div>
   );
