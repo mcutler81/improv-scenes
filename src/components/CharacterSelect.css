@@ -1,0 +1,126 @@
+.character-select {
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  max-width: 900px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  color: #333;
+}
+
+.title {
+  text-align: center;
+  font-size: 3rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 40px;
+}
+
+.character-selectors {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+  gap: 30px;
+}
+
+.selector {
+  flex: 1;
+  text-align: center;
+}
+
+.selector h2 {
+  margin-bottom: 15px;
+  color: #555;
+}
+
+.character-dropdown {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  font-size: 1rem;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.character-dropdown:hover {
+  border-color: #667eea;
+}
+
+.character-dropdown:focus {
+  outline: none;
+  border-color: #764ba2;
+}
+
+.character-preview {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.catchphrase {
+  font-style: italic;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.vs {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.audience-input {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.audience-input h2 {
+  margin-bottom: 15px;
+  color: #555;
+}
+
+.word-input {
+  width: 100%;
+  max-width: 400px;
+  padding: 15px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  text-align: center;
+  transition: border-color 0.3s;
+}
+
+.word-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.start-button {
+  display: block;
+  margin: 0 auto;
+  padding: 15px 50px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.start-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+}
+
+.start-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
