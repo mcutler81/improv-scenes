@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { supervisorMonitor } from './supervisorMonitor';
+import { persistentDB } from './persistentDatabase';
 
 const defaultSupervisorSettings = {
   turnTakingStrategy: 'context-driven', // round-robin, weighted-random, context-driven, dramatic-optimal
@@ -45,42 +47,55 @@ Respond with ONLY a JSON object:
 };
 
 export async function decideSpeaker(sceneState, availableCharacters, recentDialogue) {
-  // Load supervisor settings from localStorage
-  const savedSupervisorSettings = localStorage.getItem('improv-supervisor-settings');
-  const supervisorSettings = savedSupervisorSettings
-    ? { ...defaultSupervisorSettings, ...JSON.parse(savedSupervisorSettings) }
-    : defaultSupervisorSettings;
+  const startTime = Date.now();
+
+  // Load supervisor settings from persistent database
+  const supervisorSettings = {
+    ...defaultSupervisorSettings,
+    ...persistentDB.getSupervisorSettings()
+  };
 
   // Load dialogue settings for API configuration
-  const savedDialogueSettings = localStorage.getItem('improv-dialogue-settings');
-  const dialogueSettings = savedDialogueSettings
-    ? JSON.parse(savedDialogueSettings)
-    : { maxTokens: 150, temperature: 0.8 };
+  const dialogueSettings = {
+    maxTokens: 150,
+    temperature: 0.8,
+    ...persistentDB.getDialogueSettings()
+  };
+
+  let decision, timeTaken, isAI = false, error = null;
 
   // Handle simple strategies without AI
   if (supervisorSettings.turnTakingStrategy === 'round-robin') {
-    return handleRoundRobin(sceneState, availableCharacters);
+    decision = handleRoundRobin(sceneState, availableCharacters);
+    timeTaken = Date.now() - startTime;
+  } else if (supervisorSettings.turnTakingStrategy === 'weighted-random') {
+    decision = handleWeightedRandom(sceneState, availableCharacters);
+    timeTaken = Date.now() - startTime;
+  } else {
+    // For AI-driven strategies, use the supervisor AI
+    try {
+      decision = await callSupervisorAI(
+        sceneState,
+        availableCharacters,
+        recentDialogue,
+        supervisorSettings,
+        dialogueSettings
+      );
+      timeTaken = Date.now() - startTime;
+      isAI = true;
+    } catch (err) {
+      console.error('Supervisor AI error, falling back to weighted random:', err);
+      error = err;
+      decision = handleWeightedRandom(sceneState, availableCharacters);
+      timeTaken = Date.now() - startTime;
+      isAI = false;
+    }
   }
 
-  if (supervisorSettings.turnTakingStrategy === 'weighted-random') {
-    return handleWeightedRandom(sceneState, availableCharacters);
-  }
+  // Log the decision to supervisor monitor
+  supervisorMonitor.logDecision(decision, sceneState, timeTaken, isAI, error);
 
-  // For AI-driven strategies, use the supervisor AI
-  try {
-    const supervisorDecision = await callSupervisorAI(
-      sceneState,
-      availableCharacters,
-      recentDialogue,
-      supervisorSettings,
-      dialogueSettings
-    );
-
-    return supervisorDecision;
-  } catch (error) {
-    console.error('Supervisor AI error, falling back to weighted random:', error);
-    return handleWeightedRandom(sceneState, availableCharacters);
-  }
+  return decision;
 }
 
 async function callSupervisorAI(sceneState, availableCharacters, recentDialogue, supervisorSettings, dialogueSettings) {

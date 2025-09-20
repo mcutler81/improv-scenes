@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { characters as defaultCharacters } from '../data/characters';
 import { defaultPromptTemplates } from '../services/dialogueGenerator';
 import { defaultSupervisorSettings } from '../services/supervisorAgent';
+import { supervisorMonitor } from '../services/supervisorMonitor';
+import { persistentDB } from '../services/persistentDatabase';
 import './Settings.css';
 
 function Settings({ onBack }) {
@@ -18,49 +20,62 @@ function Settings({ onBack }) {
   const [activeTab, setActiveTab] = useState('characters');
 
   useEffect(() => {
-    // Load settings from localStorage or use defaults
-    const savedCharacters = localStorage.getItem('improv-characters');
-    const savedDialogueSettings = localStorage.getItem('improv-dialogue-settings');
-    const savedPromptTemplates = localStorage.getItem('improv-prompt-templates');
-    const savedSupervisorSettings = localStorage.getItem('improv-supervisor-settings');
+    // Load settings from persistent database or use defaults
+    const savedCharacters = persistentDB.getCharacters();
+    const savedDialogueSettings = persistentDB.getDialogueSettings();
+    const savedPromptTemplates = persistentDB.getPromptTemplates();
+    const savedSupervisorSettings = persistentDB.getSupervisorSettings();
 
-    if (savedCharacters) {
-      setCharacters(JSON.parse(savedCharacters));
+    if (savedCharacters && savedCharacters.length > 0) {
+      setCharacters(savedCharacters);
     } else {
       setCharacters(defaultCharacters);
+      persistentDB.saveCharacters(defaultCharacters);
     }
 
-    if (savedDialogueSettings) {
-      setDialogueSettings(JSON.parse(savedDialogueSettings));
+    if (Object.keys(savedDialogueSettings).length > 0) {
+      setDialogueSettings(prev => ({ ...prev, ...savedDialogueSettings }));
+    } else {
+      const defaultSettings = {
+        maxTokens: 50,
+        temperature: 0.9,
+        sceneLength: 12,
+        pauseBetweenLines: 1500
+      };
+      persistentDB.saveDialogueSettings(defaultSettings);
     }
 
-    if (savedPromptTemplates) {
-      setPromptTemplates({ ...defaultPromptTemplates, ...JSON.parse(savedPromptTemplates) });
+    if (Object.keys(savedPromptTemplates).length > 0) {
+      setPromptTemplates({ ...defaultPromptTemplates, ...savedPromptTemplates });
+    } else {
+      persistentDB.savePromptTemplates(defaultPromptTemplates);
     }
 
-    if (savedSupervisorSettings) {
-      setSupervisorSettings({ ...defaultSupervisorSettings, ...JSON.parse(savedSupervisorSettings) });
+    if (Object.keys(savedSupervisorSettings).length > 0) {
+      setSupervisorSettings({ ...defaultSupervisorSettings, ...savedSupervisorSettings });
+    } else {
+      persistentDB.saveSupervisorSettings(defaultSupervisorSettings);
     }
   }, []);
 
   const saveCharacters = (newCharacters) => {
     setCharacters(newCharacters);
-    localStorage.setItem('improv-characters', JSON.stringify(newCharacters));
+    persistentDB.saveCharacters(newCharacters);
   };
 
   const saveDialogueSettings = (newSettings) => {
     setDialogueSettings(newSettings);
-    localStorage.setItem('improv-dialogue-settings', JSON.stringify(newSettings));
+    persistentDB.saveDialogueSettings(newSettings);
   };
 
   const savePromptTemplates = (newTemplates) => {
     setPromptTemplates(newTemplates);
-    localStorage.setItem('improv-prompt-templates', JSON.stringify(newTemplates));
+    persistentDB.savePromptTemplates(newTemplates);
   };
 
   const saveSupervisorSettings = (newSettings) => {
     setSupervisorSettings(newSettings);
-    localStorage.setItem('improv-supervisor-settings', JSON.stringify(newSettings));
+    persistentDB.saveSupervisorSettings(newSettings);
   };
 
   const updateCharacter = (updatedCharacter) => {
@@ -145,6 +160,18 @@ function Settings({ onBack }) {
         >
           Supervisor
         </button>
+        <button
+          className={`tab ${activeTab === 'monitor' ? 'active' : ''}`}
+          onClick={() => setActiveTab('monitor')}
+        >
+          Monitor
+        </button>
+        <button
+          className={`tab ${activeTab === 'database' ? 'active' : ''}`}
+          onClick={() => setActiveTab('database')}
+        >
+          Database
+        </button>
       </div>
 
       {activeTab === 'characters' && (
@@ -227,6 +254,20 @@ function Settings({ onBack }) {
             settings={supervisorSettings}
             onUpdate={saveSupervisorSettings}
           />
+        </div>
+      )}
+
+      {activeTab === 'monitor' && (
+        <div className="monitor-section">
+          <h2>Supervisor Monitor</h2>
+          <SupervisorMonitor />
+        </div>
+      )}
+
+      {activeTab === 'database' && (
+        <div className="database-section">
+          <h2>Database Management</h2>
+          <DatabaseManager />
         </div>
       )}
     </div>
@@ -677,6 +718,424 @@ function SupervisorEditor({ settings, onUpdate }) {
       <button onClick={handleSave} className="save-button">
         Save Supervisor Settings
       </button>
+    </div>
+  );
+}
+
+function SupervisorMonitor() {
+  const [currentStats, setCurrentStats] = useState(null);
+  const [sceneHistory, setSceneHistory] = useState([]);
+  const [performanceInsights, setPerformanceInsights] = useState(null);
+  const [selectedScene, setSelectedScene] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  useEffect(() => {
+    // Load initial data
+    refreshData();
+
+    // Set up auto-refresh if enabled
+    let interval;
+    if (autoRefresh) {
+      interval = setInterval(refreshData, 2000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh]);
+
+  const refreshData = () => {
+    setCurrentStats(supervisorMonitor.getCurrentStatistics());
+    setSceneHistory(supervisorMonitor.getSceneHistory());
+    setPerformanceInsights(supervisorMonitor.getPerformanceInsights());
+  };
+
+  const formatDuration = (ms) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    if (minutes > 0) {
+      return `${minutes}m ${seconds % 60}s`;
+    }
+    return `${seconds}s`;
+  };
+
+  const formatTimestamp = (timestamp) => {
+    return new Date(timestamp).toLocaleTimeString();
+  };
+
+  const clearHistory = () => {
+    if (window.confirm('Clear all supervisor monitoring history? This cannot be undone.')) {
+      supervisorMonitor.clearHistory();
+      refreshData();
+    }
+  };
+
+  return (
+    <div className="supervisor-monitor">
+      <div className="monitor-header">
+        <p className="help-text">
+          Monitor supervisor performance and decisions in real-time. Use this data to optimize supervisor settings and understand how well the AI is coordinating your scenes.
+        </p>
+        <div className="monitor-controls">
+          <label className="auto-refresh-toggle">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+            />
+            Auto-refresh (2s)
+          </label>
+          <button onClick={refreshData} className="refresh-button">
+            🔄 Refresh
+          </button>
+          <button onClick={clearHistory} className="clear-button">
+            🗑️ Clear History
+          </button>
+        </div>
+      </div>
+
+      {/* Current Scene Monitoring */}
+      {currentStats && (
+        <div className="current-scene-monitor">
+          <h3>Current Scene (Live)</h3>
+          <div className="current-stats-grid">
+            <div className="stat-card">
+              <h4>Scene Info</h4>
+              <p>Word: <strong>{currentStats.sceneInfo.audienceWord}</strong></p>
+              <p>Duration: <strong>{formatDuration(currentStats.sceneInfo.duration)}</strong></p>
+              <p>Strategy: <strong>{currentStats.sceneInfo.settings.turnTakingStrategy}</strong></p>
+            </div>
+
+            <div className="stat-card">
+              <h4>Performance</h4>
+              <p>Total Decisions: <strong>{currentStats.performance.totalDecisions}</strong></p>
+              <p>AI Success: <strong>{Math.round((currentStats.performance.aiDecisions / currentStats.performance.totalDecisions) * 100) || 0}%</strong></p>
+              <p>Avg Time: <strong>{Math.round(currentStats.performance.averageDecisionTime)}ms</strong></p>
+            </div>
+
+            <div className="stat-card">
+              <h4>Participation Balance</h4>
+              {Object.entries(currentStats.performance.participationBalance).map(([name, stats]) => (
+                <p key={name}>{name}: <strong>{stats.percentage}%</strong> ({stats.turns} turns)</p>
+              ))}
+            </div>
+          </div>
+
+          {currentStats.lastDecision && (
+            <div className="last-decision">
+              <h4>Latest Supervisor Decision</h4>
+              <div className="decision-details">
+                <p><strong>Speaker:</strong> {currentStats.lastDecision.speaker}</p>
+                <p><strong>Reason:</strong> {currentStats.lastDecision.reason}</p>
+                {currentStats.lastDecision.sceneNote && (
+                  <p><strong>Scene Note:</strong> {currentStats.lastDecision.sceneNote}</p>
+                )}
+                <p><strong>Time:</strong> {formatTimestamp(currentStats.lastDecision.timestamp)}</p>
+                <p><strong>Decision Time:</strong> {currentStats.lastDecision.timeTaken}ms</p>
+                <p><strong>Method:</strong> {currentStats.lastDecision.isAI ? 'AI Decision' : 'Fallback'}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Performance Insights */}
+      {performanceInsights && (
+        <div className="performance-insights">
+          <h3>Performance Insights (Last 5 Scenes)</h3>
+          <div className="insights-grid">
+            <div className="insight-card">
+              <h4>AI Effectiveness</h4>
+              <p className={`metric ${performanceInsights.averageAISuccessRate > 0.8 ? 'good' : 'warning'}`}>
+                Success Rate: <strong>{Math.round(performanceInsights.averageAISuccessRate * 100)}%</strong>
+              </p>
+            </div>
+
+            <div className="insight-card">
+              <h4>Decision Speed</h4>
+              <p className={`metric ${performanceInsights.averageDecisionTime < 3000 ? 'good' : 'warning'}`}>
+                Avg Time: <strong>{Math.round(performanceInsights.averageDecisionTime)}ms</strong>
+              </p>
+            </div>
+
+            <div className="insight-card">
+              <h4>Balance Consistency</h4>
+              <p className={`metric ${performanceInsights.participationConsistency > 0.7 ? 'good' : 'warning'}`}>
+                Balanced Scenes: <strong>{Math.round(performanceInsights.participationConsistency * 100)}%</strong>
+              </p>
+            </div>
+          </div>
+
+          {performanceInsights.recommendedTuning.length > 0 && (
+            <div className="tuning-recommendations">
+              <h4>Tuning Recommendations</h4>
+              {performanceInsights.recommendedTuning.map((rec, index) => (
+                <div key={index} className={`recommendation ${rec.severity}`}>
+                  <p className="rec-message"><strong>{rec.message}</strong></p>
+                  <p className="rec-suggestion">{rec.suggestion}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {performanceInsights.commonReasoningPatterns.length > 0 && (
+            <div className="reasoning-patterns">
+              <h4>Common Decision Patterns</h4>
+              {performanceInsights.commonReasoningPatterns.map((pattern, index) => (
+                <p key={index}>
+                  <strong>{pattern.pattern}</strong>: {pattern.count} times
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Scene History */}
+      <div className="scene-history">
+        <h3>Scene History ({sceneHistory.length} scenes)</h3>
+        {sceneHistory.length === 0 ? (
+          <p className="no-data">No scenes recorded yet. Start an improv scene to begin monitoring.</p>
+        ) : (
+          <div className="history-list">
+            {sceneHistory.map((scene, index) => (
+              <div
+                key={scene.sessionId}
+                className={`history-item ${selectedScene?.sessionId === scene.sessionId ? 'selected' : ''}`}
+                onClick={() => setSelectedScene(scene)}
+              >
+                <div className="scene-summary">
+                  <h4>Scene {sceneHistory.length - index}: "{scene.audienceWord}"</h4>
+                  <p>{formatTimestamp(scene.startTime)} • {formatDuration(scene.duration)} • {scene.decisions.length} decisions</p>
+                  <p>Strategy: {scene.settings.turnTakingStrategy} • AI Success: {Math.round((scene.performance.aiDecisions / scene.performance.totalDecisions) * 100) || 0}%</p>
+                </div>
+                {selectedScene?.sessionId === scene.sessionId && (
+                  <div className="scene-details">
+                    <div className="decisions-list">
+                      <h5>All Decisions:</h5>
+                      {scene.decisions.map((decision, idx) => (
+                        <div key={idx} className="decision-item">
+                          <p><strong>#{idx + 1} - {decision.speaker}</strong></p>
+                          <p>{decision.reason}</p>
+                          {decision.sceneNote && <p><em>{decision.sceneNote}</em></p>}
+                          <p><small>{decision.timeTaken}ms • {decision.isAI ? 'AI' : 'Fallback'}</small></p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {scene.analytics && (
+                      <div className="scene-analytics">
+                        <h5>Analytics:</h5>
+                        <p>Participation Balance: {scene.analytics.participationBalance.isBalanced ? '✅ Balanced' : '⚠️ Imbalanced'}</p>
+                        <p>Dramatic Beats: {scene.analytics.dramaticBeatsCount}</p>
+                        <p>AI Success Rate: {Math.round(scene.analytics.strategyEffectiveness.aiSuccessRate * 100)}%</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DatabaseManager() {
+  const [dbInfo, setDbInfo] = useState(null);
+  const [exportData, setExportData] = useState('');
+  const [importData, setImportData] = useState('');
+  const [showExport, setShowExport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+
+  useEffect(() => {
+    loadDatabaseInfo();
+  }, []);
+
+  const loadDatabaseInfo = () => {
+    setDbInfo(persistentDB.getDatabaseInfo());
+  };
+
+  const handleExport = () => {
+    const data = persistentDB.exportData();
+    setExportData(data);
+    setShowExport(true);
+  };
+
+  const handleImport = async () => {
+    try {
+      if (!importData.trim()) {
+        alert('Please paste the database JSON data to import.');
+        return;
+      }
+
+      if (window.confirm('This will replace all current settings with the imported data. Continue?')) {
+        persistentDB.importData(importData);
+        alert('Database imported successfully! Please refresh the page to see changes.');
+        setImportData('');
+        setShowImport(false);
+        loadDatabaseInfo();
+      }
+    } catch (error) {
+      alert('Import failed: ' + error.message);
+    }
+  };
+
+  const handleClearAll = () => {
+    if (window.confirm('This will clear ALL settings and data. This cannot be undone. Continue?')) {
+      persistentDB.clearAll();
+      alert('Database cleared successfully! Please refresh the page.');
+      loadDatabaseInfo();
+    }
+  };
+
+  const downloadExport = () => {
+    const blob = new Blob([exportData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `improv-theater-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  return (
+    <div className="database-manager">
+      <div className="database-info">
+        <h3>Database Information</h3>
+        {dbInfo && (
+          <div className="info-grid">
+            <div className="info-item">
+              <label>Storage Location:</label>
+              <span>{dbInfo.path}</span>
+            </div>
+            <div className="info-item">
+              <label>Database Size:</label>
+              <span>{formatBytes(dbInfo.size)}</span>
+            </div>
+            <div className="info-item">
+              <label>Last Updated:</label>
+              <span>{new Date(dbInfo.metadata.lastUpdated).toLocaleString()}</span>
+            </div>
+            <div className="info-item">
+              <label>Version:</label>
+              <span>{dbInfo.metadata.version}</span>
+            </div>
+            <div className="info-item">
+              <label>Data Categories:</label>
+              <span>{dbInfo.keys.join(', ')}</span>
+            </div>
+          </div>
+        )}
+        <button onClick={loadDatabaseInfo} className="refresh-button">
+          🔄 Refresh Info
+        </button>
+      </div>
+
+      <div className="database-actions">
+        <h3>Database Actions</h3>
+        <div className="action-grid">
+          <div className="action-card">
+            <h4>Export Settings</h4>
+            <p>Save all your settings to a file that can be imported later or shared.</p>
+            <button onClick={handleExport} className="action-button export">
+              📤 Export Database
+            </button>
+          </div>
+
+          <div className="action-card">
+            <h4>Import Settings</h4>
+            <p>Load settings from a previously exported file or another version.</p>
+            <button
+              onClick={() => setShowImport(!showImport)}
+              className="action-button import"
+            >
+              📥 Import Database
+            </button>
+          </div>
+
+          <div className="action-card">
+            <h4>Clear All Data</h4>
+            <p>Reset everything to defaults. This cannot be undone!</p>
+            <button onClick={handleClearAll} className="action-button danger">
+              🗑️ Clear Database
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {showExport && (
+        <div className="export-section">
+          <h3>Export Data</h3>
+          <p>Copy this JSON data to save your settings:</p>
+          <div className="export-controls">
+            <button onClick={downloadExport} className="download-button">
+              💾 Download as File
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(exportData);
+                alert('Copied to clipboard!');
+              }}
+              className="copy-button"
+            >
+              📋 Copy to Clipboard
+            </button>
+          </div>
+          <textarea
+            value={exportData}
+            readOnly
+            rows={10}
+            className="export-textarea"
+            placeholder="Export data will appear here..."
+          />
+          <button
+            onClick={() => setShowExport(false)}
+            className="close-button"
+          >
+            ✕ Close
+          </button>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="import-section">
+          <h3>Import Data</h3>
+          <p>Paste the JSON data from a previous export:</p>
+          <textarea
+            value={importData}
+            onChange={(e) => setImportData(e.target.value)}
+            rows={10}
+            className="import-textarea"
+            placeholder="Paste your exported JSON data here..."
+          />
+          <div className="import-controls">
+            <button onClick={handleImport} className="import-button">
+              📥 Import Data
+            </button>
+            <button
+              onClick={() => {
+                setShowImport(false);
+                setImportData('');
+              }}
+              className="close-button"
+            >
+              ✕ Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

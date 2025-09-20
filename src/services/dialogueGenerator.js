@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { persistentDB } from './persistentDatabase';
 
 const defaultPromptTemplates = {
   firstLineInstructions: `You are STARTING the scene. ESTABLISH:
@@ -41,17 +42,18 @@ Respond with ONLY the dialogue line, no quotes or attribution.`,
 };
 
 export async function generateDialogue(speaker, otherCharacters, audienceWord, previousDialogue, supervisorContext = null) {
-  // Load dialogue settings from localStorage
-  const savedSettings = localStorage.getItem('improv-dialogue-settings');
-  const settings = savedSettings
-    ? JSON.parse(savedSettings)
-    : { maxTokens: 50, temperature: 0.9 };
+  // Load dialogue settings from persistent database
+  const settings = {
+    maxTokens: 50,
+    temperature: 0.9,
+    ...persistentDB.getDialogueSettings()
+  };
 
-  // Load prompt templates from localStorage
-  const savedPromptTemplates = localStorage.getItem('improv-prompt-templates');
-  const promptTemplates = savedPromptTemplates
-    ? { ...defaultPromptTemplates, ...JSON.parse(savedPromptTemplates) }
-    : defaultPromptTemplates;
+  // Load prompt templates from persistent database
+  const promptTemplates = {
+    ...defaultPromptTemplates,
+    ...persistentDB.getPromptTemplates()
+  };
   const lastLine = previousDialogue.length > 0
     ? previousDialogue[previousDialogue.length - 1].text
     : null;

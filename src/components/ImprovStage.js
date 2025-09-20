@@ -4,6 +4,8 @@ import { generateDialogue } from '../services/dialogueGenerator';
 import { speakText } from '../services/voiceSynthesis';
 import { decideSpeaker } from '../services/supervisorAgent';
 import { SceneStateManager } from '../services/sceneStateManager';
+import { supervisorMonitor } from '../services/supervisorMonitor';
+import { persistentDB } from '../services/persistentDatabase';
 import './ImprovStage.css';
 
 function ImprovStage({ character1, character2, character3, character4, audienceWord, onReset }) {
@@ -26,10 +28,10 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
   }, [timeLeft]);
 
   useEffect(() => {
-    // Load dialogue settings from localStorage
-    const savedSettings = localStorage.getItem('improv-dialogue-settings');
-    if (savedSettings) {
-      setDialogueSettings(JSON.parse(savedSettings));
+    // Load dialogue settings from persistent database
+    const savedSettings = persistentDB.getDialogueSettings();
+    if (Object.keys(savedSettings).length > 0) {
+      setDialogueSettings(prev => ({ ...prev, ...savedSettings }));
     }
   }, []);
 
@@ -42,12 +44,20 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
     const allCharacters = [character1, character2, character3, character4];
     sceneStateRef.current = new SceneStateManager(allCharacters, audienceWord);
 
+    // Load supervisor settings for monitoring
+    const supervisorSettings = persistentDB.getSupervisorSettings();
+
+    // Start supervisor monitoring session
+    supervisorMonitor.startScene(allCharacters, audienceWord, supervisorSettings);
+
     const endScene = () => {
       setIsPlaying(false);
       setSupervisorDecision(null);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      // End supervisor monitoring session
+      supervisorMonitor.endScene();
     };
 
     const performDialogue = async () => {
@@ -62,6 +72,10 @@ function ImprovStage({ character1, character2, character3, character4, audienceW
         try {
           // Get supervisor decision for next speaker
           const currentState = sceneState.getCurrentState();
+
+          // Log current scene state to monitor
+          supervisorMonitor.logSceneState(currentState);
+
           const decision = await decideSpeaker(
             currentState,
             allCharacters,
