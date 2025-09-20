@@ -1,4 +1,6 @@
 import { analyzeSceneContext } from './supervisorAgent';
+import { improvStyleModule, findUnusualComponent } from './improvStyleModule';
+import { patternGame } from './patternGame';
 
 export class SceneStateManager {
   constructor(characters, audienceWord) {
@@ -17,6 +19,19 @@ export class SceneStateManager {
       location: `somewhere related to ${this.audienceWord}`,
       themes: [this.audienceWord],
       relationships: {}
+    };
+
+    // UCB-style improv tracking
+    this.improvContext = {
+      unusualThings: [],
+      heighteningOpportunities: [],
+      patternGameElements: {
+        wordAssociations: [],
+        conceptualLeaps: [],
+        callbacks: []
+      },
+      sceneDirection: null,
+      currentPhaseObjectives: []
     };
 
     // Track each character's participation
@@ -70,6 +85,9 @@ export class SceneStateManager {
 
     // Update scene phase
     this.updateScenePhase();
+
+    // UCB-style improv analysis
+    this.updateImprovContext(dialogueEntry);
 
     return dialogueEntry;
   }
@@ -293,6 +311,137 @@ export class SceneStateManager {
     return null;
   }
 
+  // UCB-style improv context analysis
+  updateImprovContext(dialogueEntry) {
+    // Identify unusual things for heightening
+    const unusualThing = findUnusualComponent.identifyUnusualThing(this.dialogue, this.sceneContext);
+    if (unusualThing && !this.improvContext.unusualThings.some(ut => ut.element === unusualThing.element)) {
+      this.improvContext.unusualThings.push({
+        ...unusualThing,
+        identifiedAt: this.totalLines,
+        heightened: false
+      });
+    }
+
+    // Generate heightening opportunities
+    if (this.improvContext.unusualThings.length > 0) {
+      this.improvContext.heighteningOpportunities = this.improvContext.unusualThings
+        .filter(ut => !ut.heightened)
+        .map(ut => findUnusualComponent.heightenUnusualThing('exaggeration'));
+    }
+
+    // Extract pattern game elements
+    const patterns = patternGame.extractPatternsFromDialogue(this.dialogue);
+    if (patterns) {
+      this.improvContext.patternGameElements = patterns;
+    }
+
+    // Get scene direction suggestions
+    this.updateSceneDirection();
+
+    // Update phase objectives
+    this.updatePhaseObjectives();
+  }
+
+  // Update scene direction based on UCB principles
+  async updateSceneDirection() {
+    try {
+      this.improvContext.sceneDirection = await improvStyleModule.suggestSceneDirection(
+        this.getCurrentState(),
+        this.dialogue
+      );
+    } catch (error) {
+      console.warn('Could not update scene direction:', error.message);
+      this.improvContext.sceneDirection = null;
+    }
+  }
+
+  // Update current phase objectives
+  updatePhaseObjectives() {
+    const currentPhase = improvStyleModule.getCurrentScenePhase(
+      this.totalLines,
+      this.getTargetSceneLength()
+    );
+
+    const phaseInfo = improvStyleModule.getTechniquesForPhase(currentPhase);
+    this.improvContext.currentPhaseObjectives = phaseInfo.objectives || [];
+  }
+
+  // Get heightening suggestions for current scene
+  getHeighteningSuggestions() {
+    if (this.improvContext.unusualThings.length === 0) return [];
+
+    return this.improvContext.unusualThings.map(unusualThing => {
+      const heighteningStrategy = findUnusualComponent.heightenUnusualThing();
+      return {
+        unusualElement: unusualThing.element,
+        speaker: unusualThing.speaker,
+        suggestion: heighteningStrategy?.suggestion || 'Continue exploring this unusual element',
+        strategy: heighteningStrategy?.strategy || 'expansion'
+      };
+    });
+  }
+
+  // Get pattern game insights for dialogue generation
+  getPatternGameInsights() {
+    const patterns = this.improvContext.patternGameElements;
+    if (!patterns) return null;
+
+    return {
+      suggestedCallbacks: patterns.callbacks?.slice(0, 3) || [],
+      strongThemes: patterns.themes?.slice(0, 2) || [],
+      recentLeaps: patterns.conceptualLeaps?.slice(-2) || [],
+      connectionOpportunities: patterns.directConnections?.slice(-3) || []
+    };
+  }
+
+  // Get UCB-style next speaker suggestions
+  getUCBSpeakerSuggestions() {
+    const suggestions = this.getSuggestedNextSpeakers();
+    const phaseInfo = improvStyleModule.getTechniquesForPhase(this.scenePhase);
+
+    return suggestions.map(character => {
+      const charStats = this.characterStats[character.name];
+
+      return {
+        character,
+        reasons: [
+          `Participation balance (${charStats.turnCount} turns)`,
+          `Current emotional state: ${charStats.emotionalState}`,
+          `Phase objective: ${phaseInfo.objectives?.[0] || 'scene development'}`
+        ],
+        ucbTechniques: phaseInfo.techniques || [],
+        heighteningOpportunity: this.getCharacterHeighteningOpportunity(character.name)
+      };
+    });
+  }
+
+  // Get specific heightening opportunity for a character
+  getCharacterHeighteningOpportunity(characterName) {
+    const unusualThings = this.improvContext.unusualThings.filter(
+      ut => ut.speaker === characterName && !ut.heightened
+    );
+
+    if (unusualThings.length > 0) {
+      return {
+        element: unusualThings[0].element,
+        suggestion: `Heighten: "${unusualThings[0].element}"`,
+        strategy: 'exaggeration'
+      };
+    }
+
+    return null;
+  }
+
+  // Mark an unusual thing as heightened
+  markUnusualThingHeightened(element) {
+    const unusualThing = this.improvContext.unusualThings.find(ut => ut.element === element);
+    if (unusualThing) {
+      unusualThing.heightened = true;
+      unusualThing.heightenedAt = this.totalLines;
+    }
+  }
+
   // Get current scene state for supervisor
   getCurrentState() {
     return {
@@ -305,7 +454,9 @@ export class SceneStateManager {
       scenePhase: this.scenePhase,
       establishedElements: this.establishedElements,
       dramaticBeats: this.dramaticBeats,
-      pacingNeeds: this.needsPacingChange()
+      pacingNeeds: this.needsPacingChange(),
+      improvContext: this.improvContext,
+      expectedTotalLines: this.getTargetSceneLength()
     };
   }
 }

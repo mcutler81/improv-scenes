@@ -99,6 +99,16 @@ export async function decideSpeaker(sceneState, availableCharacters, recentDialo
 }
 
 async function callSupervisorAI(sceneState, availableCharacters, recentDialogue, supervisorSettings, dialogueSettings) {
+  // Validate API key first
+  const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OpenAI API key not configured. Please set REACT_APP_OPENAI_API_KEY environment variable.');
+  }
+
+  if (apiKey.length < 20 || !apiKey.startsWith('sk-')) {
+    throw new Error('OpenAI API key appears to be invalid. Please check your API key format.');
+  }
+
   const characterDetails = availableCharacters.map(char =>
     `- ${char.name}: ${char.personality} (Turns: ${sceneState.characterStats[char.name]?.turnCount || 0})`
   ).join('\n');
@@ -123,46 +133,130 @@ async function callSupervisorAI(sceneState, availableCharacters, recentDialogue,
     .replace('{recentDialogue}', recentDialogueText || 'No dialogue yet')
     .replace('{participationStats}', participationStats);
 
-  const response = await axios.post(
-    'https://api.openai.com/v1/chat/completions',
-    {
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert improv director with the personality of a ${supervisorSettings.supervisorPersonality}. Your pacing preference is ${supervisorSettings.pacingSpeed} and you maintain ${supervisorSettings.participationBalance} participation balance. Always respond with valid JSON only.`
-        },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: dialogueSettings.maxTokens || 150,
-      temperature: dialogueSettings.temperature || 0.8
-    },
-    {
-      headers: {
-        'Authorization': `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-
   try {
+    console.log('[SupervisorAgent] Making OpenAI API request...');
+
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert improv director with the personality of a ${supervisorSettings.supervisorPersonality}. Your pacing preference is ${supervisorSettings.pacingSpeed} and you maintain ${supervisorSettings.participationBalance} participation balance. Always respond with valid JSON only.`
+          },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: dialogueSettings.maxTokens || 150,
+        temperature: dialogueSettings.temperature || 0.8
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000 // 10 second timeout
+      }
+    );
+
+    console.log('[SupervisorAgent] OpenAI API response status:', response.status);
+
+    // Validate response structure
+    if (!response.data || !response.data.choices || !response.data.choices[0]) {
+      throw new Error('Invalid OpenAI API response structure');
+    }
+
     const aiResponse = response.data.choices[0].message.content.trim();
-    // Try to parse JSON response
-    const decision = JSON.parse(aiResponse);
+    console.log('[SupervisorAgent] Raw AI response:', aiResponse);
+
+    // Check for empty response
+    if (!aiResponse) {
+      throw new Error('Empty response from OpenAI API');
+    }
+
+    // Try to extract JSON from response (handle cases where AI adds extra text)
+    let jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON object found in AI response');
+    }
+
+    let decision;
+    try {
+      decision = JSON.parse(jsonMatch[0]);
+    } catch (jsonError) {
+      console.error('[SupervisorAgent] JSON parsing failed:', jsonError);
+      console.error('[SupervisorAgent] Attempted to parse:', jsonMatch[0]);
+      throw new Error(`JSON parsing failed: ${jsonError.message}`);
+    }
 
     // Validate the response has required fields
-    if (!decision.nextSpeaker || !availableCharacters.find(c => c.name === decision.nextSpeaker)) {
-      throw new Error('Invalid speaker selection');
+    if (!decision.nextSpeaker) {
+      throw new Error('Missing nextSpeaker field in AI response');
     }
 
+    const selectedCharacter = availableCharacters.find(c => c.name === decision.nextSpeaker);
+    if (!selectedCharacter) {
+      console.error('[SupervisorAgent] Available characters:', availableCharacters.map(c => c.name));
+      console.error('[SupervisorAgent] AI selected:', decision.nextSpeaker);
+      throw new Error(`Invalid speaker selection: "${decision.nextSpeaker}" not found in available characters`);
+    }
+
+    console.log('[SupervisorAgent] Successfully parsed AI decision:', {
+      speaker: decision.nextSpeaker,
+      reason: decision.reason,
+      sceneNote: decision.sceneNote
+    });
+
     return {
-      speaker: availableCharacters.find(c => c.name === decision.nextSpeaker),
+      speaker: selectedCharacter,
       reason: decision.reason || 'Supervisor decision',
       sceneNote: decision.sceneNote || null
     };
-  } catch (parseError) {
-    console.error('Failed to parse supervisor response:', parseError);
-    throw new Error('Invalid supervisor response format');
+
+  } catch (networkError) {
+    // Enhanced network error handling
+    if (networkError.code === 'ECONNABORTED') {
+      throw new Error('OpenAI API request timeout. Please check your internet connection.');
+    }
+
+    if (networkError.response) {
+      const status = networkError.response.status;
+      const statusText = networkError.response.statusText;
+
+      console.error('[SupervisorAgent] OpenAI API error response:', {
+        status,
+        statusText,
+        data: networkError.response.data
+      });
+
+      switch (status) {
+        case 401:
+          throw new Error('Invalid OpenAI API key. Please check your API key configuration.');
+        case 403:
+          throw new Error('OpenAI API access denied. Please check your API key permissions.');
+        case 429:
+          throw new Error('OpenAI API rate limit exceeded. Please try again later.');
+        case 500:
+        case 502:
+        case 503:
+          throw new Error('OpenAI API is currently unavailable. Please try again later.');
+        default:
+          throw new Error(`OpenAI API error (${status}): ${statusText}`);
+      }
+    }
+
+    if (networkError.request) {
+      throw new Error('Unable to connect to OpenAI API. Please check your internet connection.');
+    }
+
+    // Re-throw if it's already our custom error
+    if (networkError.message.includes('JSON parsing failed') ||
+        networkError.message.includes('Invalid speaker selection') ||
+        networkError.message.includes('Missing nextSpeaker field')) {
+      throw networkError;
+    }
+
+    throw new Error(`OpenAI API request failed: ${networkError.message}`);
   }
 }
 

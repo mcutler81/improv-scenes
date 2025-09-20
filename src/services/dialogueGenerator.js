@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { persistentDB } from './persistentDatabase';
+import { improvStyleModule, findUnusualComponent } from './improvStyleModule';
+import { patternGame } from './patternGame';
 
 const defaultPromptTemplates = {
   firstLineInstructions: `You are STARTING the scene. ESTABLISH:
@@ -48,6 +50,9 @@ export async function generateDialogue(speaker, otherCharacters, audienceWord, p
     temperature: 0.9,
     ...persistentDB.getDialogueSettings()
   };
+
+  // Get UCB-style improv context
+  const improvContext = await buildImprovContext(speaker, previousDialogue, supervisorContext);
 
   // Load prompt templates from persistent database
   const promptTemplates = {
@@ -122,6 +127,11 @@ export async function generateDialogue(speaker, otherCharacters, audienceWord, p
     enhancedPromptInstructions += additionalContext;
   }
 
+  // Add UCB-style improv context to prompt
+  if (improvContext.ucbGuidance) {
+    enhancedPromptInstructions += improvContext.ucbGuidance;
+  }
+
   // Build the main prompt using the template
   const templateVars = {
     speakerName: speaker.name,
@@ -169,4 +179,173 @@ export async function generateDialogue(speaker, otherCharacters, audienceWord, p
   }
 }
 
-export { defaultPromptTemplates };
+// Build UCB-style improv context for enhanced dialogue generation
+async function buildImprovContext(speaker, previousDialogue, supervisorContext) {
+  const improvContext = {
+    ucbGuidance: '',
+    patternGameInsights: null,
+    heighteningOpportunities: [],
+    scenePhase: 'development'
+  };
+
+  try {
+    // Get current scene phase
+    const currentPhase = improvStyleModule.getCurrentScenePhase(
+      previousDialogue.length,
+      12 // default scene length
+    );
+    improvContext.scenePhase = currentPhase;
+
+    // Get phase-specific techniques
+    const phaseInfo = improvStyleModule.getTechniquesForPhase(currentPhase);
+    const phaseGuidance = `\n\nUCB ${currentPhase.toUpperCase()} Phase Techniques:
+- ${phaseInfo.techniques.join(', ')}
+- Objectives: ${phaseInfo.objectives.join(', ')}`;
+
+    improvContext.ucbGuidance += phaseGuidance;
+
+    // Identify unusual things for heightening
+    if (previousDialogue.length >= 2) {
+      const unusualThing = findUnusualComponent.identifyUnusualThing(
+        previousDialogue,
+        supervisorContext?.sceneState?.sceneContext || {}
+      );
+
+      if (unusualThing) {
+        const heighteningStrategy = findUnusualComponent.heightenUnusualThing('exaggeration');
+        improvContext.heighteningOpportunities.push({
+          element: unusualThing.element,
+          speaker: unusualThing.speaker,
+          strategy: heighteningStrategy
+        });
+
+        improvContext.ucbGuidance += `\n\nHeightening Opportunity:
+Consider exaggerating or building on: "${unusualThing.element}"
+Strategy: ${heighteningStrategy?.technique || 'amplify the absurdity'}`;
+      }
+    }
+
+    // Get pattern game insights
+    if (previousDialogue.length >= 3) {
+      const patterns = patternGame.extractPatternsFromDialogue(previousDialogue);
+      if (patterns) {
+        improvContext.patternGameInsights = patterns;
+
+        // Add callback opportunities
+        if (patterns.callbacks.length > 0) {
+          const topCallback = patterns.callbacks[0];
+          improvContext.ucbGuidance += `\n\nCallback Opportunity:
+Consider referencing: "${topCallback.word}" (appeared ${topCallback.occurrences} times)`;
+        }
+
+        // Add thematic connections
+        if (patterns.themes.length > 0) {
+          const strongTheme = patterns.themes[0];
+          improvContext.ucbGuidance += `\n\nThematic Connection:
+Strong ${strongTheme.theme} theme - words: ${strongTheme.words.slice(0, 3).join(', ')}`;
+        }
+
+        // Suggest word association opportunities
+        if (previousDialogue.length > 0) {
+          const lastLine = previousDialogue[previousDialogue.length - 1].text;
+          const keyWords = patternGame.extractKeyWords(lastLine);
+
+          if (keyWords.length > 0) {
+            improvContext.ucbGuidance += `\n\nWord Association Opportunity:
+Build on key concepts: ${keyWords.slice(0, 2).join(', ')}
+Consider direct connections or conceptual leaps`;
+          }
+        }
+      }
+    }
+
+    // Add scene direction suggestions if available
+    if (supervisorContext?.sceneState?.improvContext?.sceneDirection) {
+      const sceneDirection = supervisorContext.sceneState.improvContext.sceneDirection;
+      if (sceneDirection.recommendations) {
+        improvContext.ucbGuidance += `\n\nScene Direction:
+${sceneDirection.recommendations[0]}`;
+      }
+    }
+
+  } catch (error) {
+    console.warn('Error building improv context:', error.message);
+  }
+
+  return improvContext;
+}
+
+// Generate word associations to enhance creativity
+async function generateWordAssociation(seedWord, isLeap = false) {
+  try {
+    return await patternGame.generateAssociation(seedWord, [], isLeap, 0.8);
+  } catch (error) {
+    console.warn('Error generating word association:', error.message);
+    return patternGame.getFallbackAssociation(seedWord, isLeap);
+  }
+}
+
+// Enhanced dialogue generation with UCB techniques
+async function generateUCBDialogue(speaker, otherCharacters, audienceWord, previousDialogue, sceneState) {
+  // Use regular dialogue generation with enhanced UCB context
+  const supervisorContext = {
+    reason: 'UCB-style improv generation',
+    sceneNote: 'Applying heightening and pattern game techniques',
+    sceneState: sceneState
+  };
+
+  try {
+    // Generate with UCB enhancements
+    const dialogue = await generateDialogue(
+      speaker,
+      otherCharacters,
+      audienceWord,
+      previousDialogue,
+      supervisorContext
+    );
+
+    // Post-process to ensure UCB principles
+    return await applyUCBPostProcessing(dialogue, speaker, previousDialogue, sceneState);
+
+  } catch (error) {
+    console.error('Error generating UCB dialogue:', error);
+    // Fallback to basic generation
+    return generateDialogue(speaker, otherCharacters, audienceWord, previousDialogue, supervisorContext);
+  }
+}
+
+// Apply UCB post-processing to ensure quality
+async function applyUCBPostProcessing(dialogue, speaker, previousDialogue, sceneState) {
+  // Basic validation and enhancement
+  let enhancedDialogue = dialogue;
+
+  // Ensure "yes, and..." principle if this is a response
+  if (previousDialogue.length > 0) {
+    const lastLine = previousDialogue[previousDialogue.length - 1].text.toLowerCase();
+    const currentResponse = dialogue.toLowerCase();
+
+    // Check if response negates or blocks the previous offer
+    const blockingWords = ['no', 'that\'s wrong', 'actually no', 'i disagree'];
+    const hasBlocking = blockingWords.some(word => currentResponse.includes(word));
+
+    if (hasBlocking && !currentResponse.includes('yes') && !currentResponse.includes('and')) {
+      // Try to add "yes, and..." structure
+      enhancedDialogue = `Yes, and ${dialogue.toLowerCase()}`;
+    }
+  }
+
+  // Ensure reasonable length (UCB tends to favor concise, punchy lines)
+  const words = enhancedDialogue.split(' ');
+  if (words.length > 25) {
+    enhancedDialogue = words.slice(0, 20).join(' ') + '...';
+  }
+
+  return enhancedDialogue;
+}
+
+export {
+  defaultPromptTemplates,
+  generateUCBDialogue,
+  generateWordAssociation,
+  buildImprovContext
+};

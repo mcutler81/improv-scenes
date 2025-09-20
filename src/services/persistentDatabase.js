@@ -136,6 +136,9 @@ class PersistentDatabase {
       promptTemplates: {},
       supervisorSettings: {},
       monitorHistory: [],
+      characterMemories: {},
+      userProfiles: {},
+      performanceHistory: [],
       metadata: {
         version: DB_VERSION,
         createdAt: new Date().toISOString(),
@@ -192,6 +195,51 @@ class PersistentDatabase {
 
   saveMonitorHistory(history) {
     this.data.monitorHistory = history;
+    this.save();
+  }
+
+  // Character Memories
+  getCharacterMemories() {
+    return this.data.characterMemories || {};
+  }
+
+  saveCharacterMemories(memories) {
+    this.data.characterMemories = memories;
+    this.save();
+  }
+
+  // User Profiles
+  getUserProfiles() {
+    return this.data.userProfiles || {};
+  }
+
+  saveUserProfiles(profiles) {
+    this.data.userProfiles = profiles;
+    this.save();
+  }
+
+  // Performance History
+  getPerformanceHistory() {
+    return this.data.performanceHistory || [];
+  }
+
+  savePerformanceHistory(history) {
+    this.data.performanceHistory = history;
+    this.save();
+  }
+
+  addPerformanceRecord(record) {
+    if (!this.data.performanceHistory) {
+      this.data.performanceHistory = [];
+    }
+
+    this.data.performanceHistory.unshift(record);
+
+    // Keep only the most recent 100 performances
+    if (this.data.performanceHistory.length > 100) {
+      this.data.performanceHistory = this.data.performanceHistory.slice(0, 100);
+    }
+
     this.save();
   }
 

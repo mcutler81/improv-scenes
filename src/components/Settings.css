@@ -960,6 +960,51 @@
   font-family: 'Courier New', monospace;
 }
 
+.api-status {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.api-status.missing {
+  background: rgba(255, 193, 7, 0.1);
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.api-status.invalid {
+  background: rgba(255, 107, 107, 0.1);
+  color: #c92a2a;
+  border: 1px solid #ffc9c9;
+}
+
+.api-status.configured {
+  background: rgba(52, 152, 219, 0.1);
+  color: #2980b9;
+  border: 1px solid #74b9ff;
+}
+
+.api-status.valid {
+  background: rgba(76, 175, 80, 0.1);
+  color: #388e3c;
+  border: 1px solid #c8e6c9;
+}
+
+.api-status.error {
+  background: rgba(255, 107, 107, 0.1);
+  color: #c92a2a;
+  border: 1px solid #ffc9c9;
+}
+
+.api-status.unknown {
+  background: rgba(108, 117, 125, 0.1);
+  color: #6c757d;
+  border: 1px solid #ced4da;
+}
+
 .database-actions {
   background: #f8f9fa;
   border-radius: 12px;
@@ -1163,6 +1208,12 @@
   box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
 }
 
+.database-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .characters-section {
@@ -1220,6 +1271,14 @@
 
   .export-controls button,
   .import-controls button {
+    width: 100%;
+  }
+
+  .database-controls {
+    flex-direction: column;
+  }
+
+  .database-controls button {
     width: 100%;
   }
 }

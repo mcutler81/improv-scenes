@@ -42,6 +42,26 @@ class SupervisorMonitor {
   logDecision(decision, sceneState, timeTaken = 0, isAI = true, error = null) {
     if (!this.currentSceneData) return;
 
+    // Enhanced error information
+    let errorInfo = null;
+    if (error) {
+      errorInfo = {
+        message: error.message || 'Unknown error',
+        type: error.name || 'Error',
+        stack: error.stack ? error.stack.split('\n').slice(0, 3).join('\n') : null,
+        timestamp: Date.now()
+      };
+
+      // Log to console for debugging
+      console.error('[SupervisorMonitor] Decision error captured:', {
+        message: error.message,
+        type: error.name,
+        isAI,
+        timeTaken,
+        speaker: decision.speaker.name
+      });
+    }
+
     const decisionEntry = {
       timestamp: Date.now(),
       lineNumber: sceneState.totalLines + 1,
@@ -50,7 +70,7 @@ class SupervisorMonitor {
       sceneNote: decision.sceneNote,
       timeTaken, // milliseconds
       isAI,
-      error: error ? error.message : null,
+      error: errorInfo,
       sceneContext: {
         energy: sceneState.sceneContext.energy,
         mood: sceneState.sceneContext.mood,
@@ -64,7 +84,7 @@ class SupervisorMonitor {
     this.currentSceneData.decisions.push(decisionEntry);
 
     // Update performance metrics
-    this.updatePerformanceMetrics(decision, timeTaken, isAI);
+    this.updatePerformanceMetrics(decision, timeTaken, isAI, error);
   }
 
   // Log scene state at decision time
@@ -86,8 +106,28 @@ class SupervisorMonitor {
   }
 
   // Update performance metrics
-  updatePerformanceMetrics(decision, timeTaken, isAI) {
+  updatePerformanceMetrics(decision, timeTaken, isAI, error = null) {
     const perf = this.currentSceneData.performance;
+
+    // Track error statistics
+    if (error) {
+      if (!perf.errorStats) {
+        perf.errorStats = {
+          totalErrors: 0,
+          errorTypes: {},
+          lastError: null
+        };
+      }
+
+      perf.errorStats.totalErrors += 1;
+      const errorType = error.message || 'Unknown error';
+      perf.errorStats.errorTypes[errorType] = (perf.errorStats.errorTypes[errorType] || 0) + 1;
+      perf.errorStats.lastError = {
+        message: error.message,
+        timestamp: Date.now(),
+        isAI
+      };
+    }
 
     perf.totalDecisions += 1;
     if (isAI) {

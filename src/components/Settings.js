@@ -948,9 +948,11 @@ function DatabaseManager() {
   const [importData, setImportData] = useState('');
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [apiKeyStatus, setApiKeyStatus] = useState(null);
 
   useEffect(() => {
     loadDatabaseInfo();
+    checkAPIKeyStatus();
   }, []);
 
   const loadDatabaseInfo = () => {
@@ -987,6 +989,85 @@ function DatabaseManager() {
       persistentDB.clearAll();
       alert('Database cleared successfully! Please refresh the page.');
       loadDatabaseInfo();
+    }
+  };
+
+  const checkAPIKeyStatus = () => {
+    const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
+
+    if (!apiKey) {
+      setApiKeyStatus({
+        status: 'missing',
+        message: 'OpenAI API key not configured',
+        details: 'Set REACT_APP_OPENAI_API_KEY environment variable'
+      });
+      return;
+    }
+
+    if (apiKey.length < 20 || !apiKey.startsWith('sk-')) {
+      setApiKeyStatus({
+        status: 'invalid',
+        message: 'API key format appears invalid',
+        details: 'OpenAI API keys should start with "sk-" and be longer than 20 characters'
+      });
+      return;
+    }
+
+    setApiKeyStatus({
+      status: 'configured',
+      message: 'API key is configured',
+      details: `Key: ${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}`
+    });
+  };
+
+  const checkAPIKey = async () => {
+    checkAPIKeyStatus();
+
+    if (apiKeyStatus?.status !== 'configured') {
+      alert(`API Key Issue: ${apiKeyStatus?.message}\n\n${apiKeyStatus?.details}\n\nPlease configure your OpenAI API key in your environment variables.`);
+      return;
+    }
+
+    // Test API connection with a simple request
+    try {
+      setApiKeyStatus(prev => ({ ...prev, testing: true }));
+
+      const testResponse = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (testResponse.ok) {
+        setApiKeyStatus(prev => ({
+          ...prev,
+          status: 'valid',
+          message: 'API key is working correctly',
+          testing: false
+        }));
+        alert('✅ API Key Test Successful!\n\nYour OpenAI API key is configured correctly and can access the API.');
+      } else {
+        const errorText = await testResponse.text();
+        setApiKeyStatus(prev => ({
+          ...prev,
+          status: 'error',
+          message: `API test failed (${testResponse.status})`,
+          details: errorText,
+          testing: false
+        }));
+        alert(`❌ API Key Test Failed!\n\nStatus: ${testResponse.status}\nError: ${errorText}\n\nPlease check your API key configuration.`);
+      }
+    } catch (error) {
+      setApiKeyStatus(prev => ({
+        ...prev,
+        status: 'error',
+        message: 'Connection test failed',
+        details: error.message,
+        testing: false
+      }));
+      alert(`❌ API Connection Test Failed!\n\nError: ${error.message}\n\nPlease check your internet connection and API key.`);
     }
   };
 
@@ -1036,11 +1117,22 @@ function DatabaseManager() {
               <label>Data Categories:</label>
               <span>{dbInfo.keys.join(', ')}</span>
             </div>
+            <div className="info-item">
+              <label>OpenAI API Status:</label>
+              <span className={`api-status ${apiKeyStatus?.status || 'unknown'}`}>
+                {apiKeyStatus?.testing ? 'Testing...' : (apiKeyStatus?.message || 'Unknown')}
+              </span>
+            </div>
           </div>
         )}
-        <button onClick={loadDatabaseInfo} className="refresh-button">
-          🔄 Refresh Info
-        </button>
+        <div className="database-controls">
+          <button onClick={loadDatabaseInfo} className="refresh-button">
+            🔄 Refresh Info
+          </button>
+          <button onClick={checkAPIKeyStatus} className="refresh-button">
+            🔑 Check API Status
+          </button>
+        </div>
       </div>
 
       <div className="database-actions">
@@ -1070,6 +1162,14 @@ function DatabaseManager() {
             <p>Reset everything to defaults. This cannot be undone!</p>
             <button onClick={handleClearAll} className="action-button danger">
               🗑️ Clear Database
+            </button>
+          </div>
+
+          <div className="action-card">
+            <h4>OpenAI API Configuration</h4>
+            <p>Check your OpenAI API key status and connection.</p>
+            <button onClick={checkAPIKey} className="action-button import">
+              🔑 Check API Key
             </button>
           </div>
         </div>
